@@ -11,6 +11,7 @@
 #include <linux/reboot.h>
 #include <linux/security.h>
 #include <linux/socket.h>
+#include <linux/un.h>
 #include <net/inet_sock.h>
 
 #include "firmadyne.h"
@@ -32,7 +33,11 @@
 
 #define SYSCALL_HOOKS \
 	/* Hook network binds */ \
-	HOOK("inet_bind", bind_hook, bind_probe) \
+	HOOK("inet_bind", inet_bind_hook, inet_bind_probe) \
+	/* Hook network binds */ \
+	HOOK("sys_bind", bind_hook, bind_probe) \
+	/* Hook network binds */ \
+	HOOK("inet6_bind", inet6_bind_hook, inet6_bind_probe) \
 	/* Hook accepts */ \
 	HOOK("inet_accept", accept_hook, accept_probe) \
 	/* Hook VLAN creation */ \
@@ -178,11 +183,55 @@ static void vlan_hook(struct net_device *dev) {
 	jprobe_return();
 }
 
-static void bind_hook(struct socket *sock, struct sockaddr *uaddr, int addr_len) {
+static void inet_bind_hook(struct socket *sock, struct sockaddr *uaddr, int addr_len) {
 	if (syscall & LEVEL_NETWORK) {
 		unsigned int sport = htons(((struct sockaddr_in *)uaddr)->sin_port);
 		printk(KERN_INFO MODULE_NAME": inet_bind[PID: %d (%s)]: proto:%s, port:%d\n", task_pid_nr(current), current->comm, sock->type == SOCK_STREAM ? "SOCK_STREAM" : (sock->type == SOCK_DGRAM ? "SOCK_DGRAM" : "SOCK_OTHER"), sport);
 	}
+
+	jprobe_return();
+}
+
+
+static void inet6_bind_hook(struct socket *sock, struct sockaddr *uaddr, int addr_len) {
+	if (syscall & LEVEL_NETWORK) {
+		struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)uaddr;
+		unsigned int sport = ntohs(addr6->sin6_port);		
+		printk(KERN_INFO MODULE_NAME": inet6_bind[PID: %d (%s)]: proto:%s, port:%d\n", task_pid_nr(current), current->comm, sock->type == SOCK_STREAM ? "SOCK_STREAM" : (sock->type == SOCK_DGRAM ? "SOCK_DGRAM" : "SOCK_OTHER"), sport);
+	}
+
+	jprobe_return();
+}
+
+static void bind_hook(int fd, struct sockaddr *umyaddr, int addrlen) {
+	// if (syscall & LEVEL_NETWORK) {
+	// 	printk(KERN_INFO MODULE_NAME": sys_bind[PID: %d (%s)]: fd:%d port: %d \n", task_pid_nr(current), current->comm, fd);
+	// }
+
+	if (syscall & LEVEL_NETWORK) {
+        // Check the address family
+        if (umyaddr->sa_family == AF_INET) { // IPv4 address
+            struct sockaddr_in *addr_in = (struct sockaddr_in *)umyaddr;
+            unsigned int sport = ntohs(addr_in->sin_port);
+            printk(KERN_INFO MODULE_NAME": sys_bind[PID: %d (%s)]: fd:%d IPv4 port: %d \n", 
+                   task_pid_nr(current), current->comm, fd, sport);
+        }
+        else if (umyaddr->sa_family == AF_INET6) { // IPv6 address
+            struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)umyaddr;
+            unsigned int sport = ntohs(addr_in6->sin6_port);
+            printk(KERN_INFO MODULE_NAME": sys_bind[PID: %d (%s)]: fd:%d IPv6 port: %d \n", 
+                   task_pid_nr(current), current->comm, fd, sport);
+        }
+        else if (umyaddr->sa_family == AF_UNIX) { // Unix domain socket
+            struct sockaddr_un *addr_un = (struct sockaddr_un *)umyaddr;
+            printk(KERN_INFO MODULE_NAME": sys_bind[PID: %d (%s)]: fd:%d Unix domain socket: %s \n", 
+                   task_pid_nr(current), current->comm, fd, addr_un->sun_path);
+        }
+        else {
+            printk(KERN_INFO MODULE_NAME": sys_bind[PID: %d (%s)]: fd:%d Unknown address family\n", 
+                   task_pid_nr(current), current->comm, fd);
+        }
+    }
 
 	jprobe_return();
 }
