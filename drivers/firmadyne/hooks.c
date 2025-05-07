@@ -36,6 +36,7 @@
 	HOOK("inet_bind", inet_bind_hook, inet_bind_probe) \
 	/* Hook network binds */ \
 	HOOK("sys_bind", bind_hook, bind_probe) \
+	HOOK_RET("sys_bind", NULL, bind_ret_hook, bind_ret_probe) \
 	/* Hook network binds */ \
 	HOOK("inet6_bind", inet6_bind_hook, inet6_bind_probe) \
 	/* Hook accepts */ \
@@ -213,27 +214,30 @@ static void bind_hook(int fd, struct sockaddr *umyaddr, int addrlen) {
         if (umyaddr->sa_family == AF_INET) { // IPv4 address
             struct sockaddr_in *addr_in = (struct sockaddr_in *)umyaddr;
             unsigned int sport = ntohs(addr_in->sin_port);
-            printk(KERN_INFO MODULE_NAME": sys_bind[PID: %d (%s)]: fd:%d IPv4 port: %d \n", 
-                   task_pid_nr(current), current->comm, fd, sport);
+            printk(KERN_INFO MODULE_NAME": sys_bind[PID: %d (%s)]: fd:%d family:%d port: %d \n", 
+                   task_pid_nr(current), current->comm, fd, umyaddr->sa_family, sport);
         }
         else if (umyaddr->sa_family == AF_INET6) { // IPv6 address
             struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)umyaddr;
             unsigned int sport = ntohs(addr_in6->sin6_port);
-            printk(KERN_INFO MODULE_NAME": sys_bind[PID: %d (%s)]: fd:%d IPv6 port: %d \n", 
-                   task_pid_nr(current), current->comm, fd, sport);
-        }
-        else if (umyaddr->sa_family == AF_UNIX) { // Unix domain socket
-            struct sockaddr_un *addr_un = (struct sockaddr_un *)umyaddr;
-            printk(KERN_INFO MODULE_NAME": sys_bind[PID: %d (%s)]: fd:%d Unix domain socket: %s \n", 
-                   task_pid_nr(current), current->comm, fd, addr_un->sun_path);
+            printk(KERN_INFO MODULE_NAME": sys_bind[PID: %d (%s)]: fd:%d family:%d port: %d \n", 
+                   task_pid_nr(current), current->comm, fd, umyaddr->sa_family, sport);
         }
         else {
-            printk(KERN_INFO MODULE_NAME": sys_bind[PID: %d (%s)]: fd:%d Unknown address family\n", 
-                   task_pid_nr(current), current->comm, fd);
+            printk(KERN_INFO MODULE_NAME": sys_bind[PID: %d (%s)]: fd:%d family:%d port:0 (Port not captured.)\n", 
+                   task_pid_nr(current), current->comm, fd, umyaddr->sa_family);
         }
     }
 
 	jprobe_return();
+}
+
+static int bind_ret_hook(struct kretprobe_instance *ri, struct pt_regs *regs) {
+	if (syscall & LEVEL_NETWORK) {
+		long retval = regs_return_value(regs);
+		printk(KERN_INFO MODULE_NAME": sys_bind_ret[PID: %d (%s)] = %ld\n", task_pid_nr(current), current->comm, retval);
+	}
+	return 0;
 }
 
 static void accept_hook(struct socket *sock, struct socket *newsock, int flags) {
