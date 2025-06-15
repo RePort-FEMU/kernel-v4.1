@@ -46,7 +46,7 @@ jobs:
     
           - name: Archive kernel
             run: |
-              tar -czf kernel-mipsel.tar.gz ./build/mipsel/vmlinux
+              tar -czf kernel-mipsel.tar.gz  -C ./build/mipsel vmlinux
               echo "Kernel archive created: kernel-mipsel.tar.gz"
     
           - name: Upload kernel artifact
