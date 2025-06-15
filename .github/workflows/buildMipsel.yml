@@ -32,6 +32,7 @@ jobs:
     
           - name: Install toolchain
             run: |
+              cd musl-cross-make
               sudo make install
     
           - name: Configure kernel
