@@ -2,9 +2,9 @@ name: Build Kernel for MIPSEL
 
 on:
     push:
-        branches: [ main ]
+        branches: [ master ]
     pull_request:
-        branches: [ main ]
+        branches: [ master ]
 
     workflow_dispatch:
 
@@ -53,7 +53,7 @@ jobs:
               echo "Kernel archive created: kernel-mipsel.tar.gz"
     
           - name: Upload kernel artifact
-            uses: actions/upload-artifact@v3
+            uses: actions/upload-artifact@v4
             with:
               name: kernel-mipsel
               path: kernel-mipsel.tar.gz
