@@ -1,0 +1,72 @@
+name: Build Kernel for ARMEL
+
+on:
+    push:
+        branches: [ master ]
+    pull_request:
+        branches: [ master ]
+      
+    workflow_dispatch:
+
+jobs:
+      build-mipsel:
+        runs-on: ubuntu-latest
+        steps:
+          - name: Checkout source
+            uses: actions/checkout@v4
+
+          - name: Install dependencies
+            run: |
+              sudo apt-get update
+              sudo apt-get install -y build-essential git
+
+          # Wrong compiler plz fix
+
+          - name: Download musl installer
+            run: |
+              git clone https://github.com/richfelker/musl-cross-make.git
+  
+          - name: Configure musl and build toolchain
+            run: |            
+              cd musl-cross-make
+              cp ../musl.config.mipsel ./config.mak
+              make -j$(nproc)
+
+          - name: Install toolchain
+            run: |
+              cd musl-cross-make
+              sudo make install
+
+          - name: Configure kernel
+            run: |
+              mkdir -p build/armel
+              cp config.armel build/armel/.config
+
+          - name: Build kernel zImage
+            run: |
+              make ARCH=arm CROSS_COMPILE=/opt/cross/arm-linux-musleabi/bin/arm-linux-musleabi- O=./build/armel zImage -j$(nproc)
+
+          - name: Rename zImage to zImage.armel
+            run: |
+              cp build/armel/arch/arm/boot/zImage zImage.armel
+
+          - name: Create GitHub Release
+            id: create_release
+            uses: actions/create-release@v1
+            env:
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            with:
+              tag_name: armel-${{ github.run_number }}
+              release_name: "ARMEL Kernel Build #${{ github.run_number }}"
+              draft: false
+              prerelease: false
+
+          - name: Upload zImage.armel to Release
+            uses: actions/upload-release-asset@v1
+            env:
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            with:
+              upload_url: ${{ steps.create_release.outputs.upload_url }}
+              asset_path: ./zImage.armel
+              asset_name: zImage.armel
+              asset_content_type: application/octet-stream
