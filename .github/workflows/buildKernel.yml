@@ -142,8 +142,6 @@ jobs:
               new_minor=$((minor + 1))
               new_version="$base.$new_minor"
               echo "new_version=$new_version" >> $GITHUB_ENV
-              git tag "$new_version"
-              git push origin "$new_version"
 
           - name: Publish new release
             uses: softprops/action-gh-release@v1
