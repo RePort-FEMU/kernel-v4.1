@@ -29,7 +29,7 @@ jobs:
           - name: Configure musl and build toolchain
             run: |            
               cd musl-cross-make
-              cp ../musl.config.mipsel ./config.mak
+              cp ../musl.config.armel ./config.mak
               make -j$(nproc)
 
           - name: Install toolchain
@@ -50,23 +50,13 @@ jobs:
             run: |
               cp build/armel/arch/arm/boot/zImage zImage.armel
 
-          - name: Create GitHub Release
-            id: create_release
-            uses: actions/create-release@v1
-            env:
-              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            with:
-              tag_name: armel-${{ github.run_number }}
-              release_name: "ARMEL Kernel Build #${{ github.run_number }}"
-              draft: false
-              prerelease: false
+          - name: Archive kernel
+            run: |
+              tar -czf kernel-armel.tar.gz -C zImage.armel
+              echo "Kernel archive created: kernel-armel.tar.gz"
 
-          - name: Upload zImage.armel to Release
-            uses: actions/upload-release-asset@v1
-            env:
-              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          - name: Upload kernel artifact
+            uses: actions/upload-artifact@v4
             with:
-              upload_url: ${{ steps.create_release.outputs.upload_url }}
-              asset_path: ./zImage.armel
-              asset_name: zImage.armel
-              asset_content_type: application/octet-stream
+              name: kernel-armel
+              path: kernel-armel.tar.gz
