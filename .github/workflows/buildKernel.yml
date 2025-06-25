@@ -55,6 +55,51 @@ jobs:
               name: kernel-mipsel-${{ github.run_id }}
               path: kernel-mipsel.tar.gz
 
+      build-mipseb:
+        runs-on: ubuntu-latest
+        steps:
+          - name: Checkout source
+            uses: actions/checkout@v4
+    
+          - name: Install dependencies
+            run: |
+              sudo apt-get update
+              sudo apt-get install -y build-essential git
+    
+          - name: Download musl installer
+            run: |
+              git clone https://github.com/richfelker/musl-cross-make.git
+    
+          - name: Configure musl and build toolchain
+            run: |
+              cd musl-cross-make
+              cp ../musl.config.mipseb ./config.mak
+              make -j$(nproc)
+    
+          - name: Install toolchain
+            run: |
+              cd musl-cross-make
+              sudo make install
+    
+          - name: Configure kernel
+            run: |
+              mkdir -p build/mipseb
+              cp config.mipseb build/mipseb/.config
+    
+          - name: Build kernel
+            run: |
+              make ARCH=mips CROSS_COMPILE=/opt/cross/mipseb-linux-musl/bin/mips-linux-musl- O=./build/mipseb -j$(nproc)
+    
+          - name: Archive kernel
+            run: |
+              tar -czf kernel-mipseb.tar.gz  -C ./build/mipseb vmlinux
+              echo "Kernel archive created: kernel-mipseb.tar.gz"
+    
+          - name: Upload kernel artifact
+            uses: actions/upload-artifact@v4
+            with:
+              name: kernel-mipseb-${{ github.run_id }}
+              path: kernel-mipseb.tar.gz
               
       build-armel:
         runs-on: ubuntu-latest
@@ -93,36 +138,59 @@ jobs:
             run: |
               make ARCH=arm CROSS_COMPILE=/opt/cross/arm-linux-musleabi/bin/arm-linux-musleabi- O=./build/armel zImage -j$(nproc)
 
-          - name: Archive kernel
+          - name: Archive zImage kernel
             run: |
-              tar -czf kernel-armel.tar.gz -C ./build/armel/arch/arm/boot/ zImage
-              echo "Kernel archive created: kernel-armel.tar.gz"
+              tar -czf kernel-armel-zImage.tar.gz -C ./build/armel/arch/arm/boot/ zImage
+              echo "Kernel archive created: kernel-armel-zImage.tar.gz"
 
-          - name: Upload kernel artifact
+          - name: Archive kernel vmlinux
+            run: |
+              tar -czf kernel-armel-vmlinux.tar.gz -C ./build/armel vmlinux
+              echo "Kernel archive created: kernel-armel-vmlinux.tar.gz"
+
+          - name: Upload zImage kernel artifact
             uses: actions/upload-artifact@v4
             with:
               name: kernel-armel-${{ github.run_id }}
               path: kernel-armel.tar.gz
 
+          - name: Upload vmlinux kernel artifact
+            uses: actions/upload-artifact@v4
+            with:
+              name: kernel-armel-vmlinux-${{ github.run_id }}
+              path: kernel-armel-vmlinux.tar.gz
+
       publish:
         runs-on: ubuntu-latest
-        needs: [build-mipsel, build-armel]
+        needs: [build-mipsel, build-mipseb, build-armel]
         steps:
           - name: Checkout source
             uses: actions/checkout@v4
 
-          - name: Download artifacts
+          - name: Download mipsel artifacts
             uses: actions/download-artifact@v4
             with:
               name: kernel-mipsel-${{ github.run_id }}
-              path: ./artifacts/mipsel
+              path: ./artifacts/mips
 
-          - name: Download artifacts
+          - name: Download mipseb artifacts
             uses: actions/download-artifact@v4
             with:
-              name: kernel-armel-${{ github.run_id }}
-              path: ./artifacts/armel
+              name: kernel-mipseb-${{ github.run_id }}
+              path: ./artifacts/mips
           
+          - name: Download armel zImage artifacts
+            uses: actions/download-artifact@v4
+            with:
+              name: kernel-armel-zImage${{ github.run_id }}
+              path: ./artifacts/armel
+            
+          - name: Download armel vmlinux artifacts
+            uses: actions/download-artifact@v4
+            with:
+              name: kernel-armel-vmlinux-${{ github.run_id }}
+              path: ./artifacts/armel
+
           - name: Get Latest Release Version
             id: get_version
             run: |
@@ -149,8 +217,10 @@ jobs:
               tag_name: ${{ env.new_version }}
               name: "Kernel Release ${{ env.new_version }}"
               files: |
-                ./artifacts/mipsel/kernel-mipsel.tar.gz
-                ./artifacts/armel/kernel-armel.tar.gz
+                ./artifacts/mips/kernel-mipsel.tar.gz
+                ./artifacts/mips/kernel-mipseb.tar.gz
+                ./artifacts/armel/kernel-armel-zImage.tar.gz
+                ./artifacts/armel/kernel-armel-vmlinux.tar.gz
             env:
               GITHUB_TOKEN: ${{ secrets.KERNEL_BUILD_TOKEN }}
               GITHUB_REPOSITORY: ${{ github.repository }}
