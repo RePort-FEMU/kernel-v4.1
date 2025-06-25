@@ -28,7 +28,7 @@ jobs:
             run: |
               cd musl-cross-make
               cp ../musl.config.mipsel ./config.mak
-              make -j$(nproc)
+              make
     
           - name: Install toolchain
             run: |
@@ -74,7 +74,7 @@ jobs:
             run: |
               cd musl-cross-make
               cp ../musl.config.mipseb ./config.mak
-              make -j$(nproc)
+              make 
     
           - name: Install toolchain
             run: |
@@ -112,8 +112,6 @@ jobs:
               sudo apt-get update
               sudo apt-get install -y build-essential git
 
-          # Wrong compiler plz fix
-
           - name: Download musl installer
             run: |
               git clone https://github.com/richfelker/musl-cross-make.git
@@ -122,7 +120,7 @@ jobs:
             run: |            
               cd musl-cross-make
               cp ../musl.config.armel ./config.mak
-              make -j$(nproc)
+              make
 
           - name: Install toolchain
             run: |
