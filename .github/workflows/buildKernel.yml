@@ -149,8 +149,8 @@ jobs:
           - name: Upload zImage kernel artifact
             uses: actions/upload-artifact@v4
             with:
-              name: kernel-armel-${{ github.run_id }}
-              path: kernel-armel.tar.gz
+              name: kernel-armel-zImage-${{ github.run_id }}
+              path: kernel-armel-zImage.tar.gz
 
           - name: Upload vmlinux kernel artifact
             uses: actions/upload-artifact@v4
