@@ -266,7 +266,7 @@ static int bind_ret_hook(struct kretprobe_instance *ri, struct pt_regs *regs) {
 				return 0;
 			}
 
-			unsigned short port = ntohs(inet_sk(sk)->inet_num);
+			unsigned short port = inet_sk(sk)->inet_num;
 
 			printk(KERN_INFO MODULE_NAME": sys_bind_ret[PID: %d (%s)] = %ld [Assigned Port: %u]\n", 
 					task_pid_nr(current), current->comm, retval, port);
