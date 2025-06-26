@@ -13,6 +13,7 @@
 #include <linux/socket.h>
 #include <linux/un.h>
 #include <net/inet_sock.h>
+#include <linux/file.h>
 
 #include "firmadyne.h"
 #include "hooks.h"
@@ -83,6 +84,10 @@
 	HOOK("mmap_region", mmap_hook, mmap_probe)
 
 static char *envp_init[] = { "HOME=/", "TERM=linux", "LD_PRELOAD=/firmadyne/libnvram.so", NULL };
+
+static int fd_cache = 0;
+static int pid_cache = 0;
+
 
 static void socket_hook(int family, int type, int protocol) {
 	if (syscall & LEVEL_NETWORK) {
@@ -210,7 +215,12 @@ static void bind_hook(int fd, struct sockaddr *umyaddr, int addrlen) {
 	// }
 
 	if (syscall & LEVEL_NETWORK) {
-        // Check the address family
+        // Cache the address and pid to check if it has changed on return
+		fd_cache = fd;
+		pid_cache = task_pid_nr(current);
+
+		// Check the address family
+		
         if (umyaddr->sa_family == AF_INET) { // IPv4 address
             struct sockaddr_in *addr_in = (struct sockaddr_in *)umyaddr;
             unsigned int sport = ntohs(addr_in->sin_port);
@@ -235,7 +245,35 @@ static void bind_hook(int fd, struct sockaddr *umyaddr, int addrlen) {
 static int bind_ret_hook(struct kretprobe_instance *ri, struct pt_regs *regs) {
 	if (syscall & LEVEL_NETWORK) {
 		long retval = regs_return_value(regs);
-		printk(KERN_INFO MODULE_NAME": sys_bind_ret[PID: %d (%s)] = %ld\n", task_pid_nr(current), current->comm, retval);
+
+		// Check if the cached address and pid match the current process
+		if (pid_cache == task_pid_nr(current)) {
+
+			struct socket *sock;
+			struct sock *sk;
+
+			sock = sockfd_lookup(fd_cache, NULL);
+			if (!sock) {
+				printk(KERN_INFO MODULE_NAME": sys_bind_ret[PID: %d (%s)] = %ld [Port Not Captured]\n", task_pid_nr(current), current->comm, retval);
+				return 0;
+			}
+
+			sk = sock->sk;
+			if (!sk) {
+				printk(KERN_INFO MODULE_NAME": sys_bind_ret[PID: %d (%s)] = %ld [Port Not Captured]\n", task_pid_nr(current), current->comm, retval);
+				sockfd_put(sock);
+				return 0;
+			}
+
+			unsigned short port = ntohs(inet_sk(sk)->inet_num);
+
+			printk(KERN_INFO MODULE_NAME": sys_bind_ret[PID: %d (%s)] = %ld [Assigned Port: %u]\n", 
+					task_pid_nr(current), current->comm, retval, port);
+
+			sockfd_put(sock);
+			return 0;
+		}
+		printk(KERN_INFO MODULE_NAME": sys_bind_ret[PID: %d (%s)] = %ld [Port Not Captured]\n", task_pid_nr(current), current->comm, retval);
 	}
 	return 0;
 }
